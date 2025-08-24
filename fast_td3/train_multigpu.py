@@ -34,7 +34,7 @@ import torch.multiprocessing as mp
 
 from tensordict import TensorDict
 
-from fast_td3_utils import (
+from .fast_td3_utils import (
     EmpiricalNormalization,
     RewardNormalizer,
     PerTaskRewardNormalizer,
@@ -224,12 +224,12 @@ def main(rank: int, world_size: int):
 
     if args.agent == "fasttd3":
         if env_type in ["mtbench"]:
-            from fast_td3 import MultiTaskActor, MultiTaskCritic
+            from .fast_td3 import MultiTaskActor, MultiTaskCritic
 
             actor_cls = MultiTaskActor
             critic_cls = MultiTaskCritic
         else:
-            from fast_td3 import Actor, Critic
+            from .fast_td3 import Actor, Critic
 
             actor_cls = Actor
             critic_cls = Critic
@@ -238,12 +238,12 @@ def main(rank: int, world_size: int):
             print("Using FastTD3")
     elif args.agent == "fasttd3_simbav2":
         if env_type in ["mtbench"]:
-            from fast_td3_simbav2 import MultiTaskActor, MultiTaskCritic
+            from .fast_td3_simbav2 import MultiTaskActor, MultiTaskCritic
 
             actor_cls = MultiTaskActor
             critic_cls = MultiTaskCritic
         else:
-            from fast_td3_simbav2 import Actor, Critic
+            from .fast_td3_simbav2 import Actor, Critic
 
             actor_cls = Actor
             critic_cls = Critic

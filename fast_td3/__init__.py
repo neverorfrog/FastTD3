@@ -4,9 +4,9 @@ with distributional critics for reinforcement learning.
 """
 
 # Core model components
-from fast_td3.fast_td3 import Actor, Critic, DistributionalQNetwork
-from fast_td3.fast_td3_utils import EmpiricalNormalization, SimpleReplayBuffer
-from fast_td3.fast_td3_deploy import Policy, load_policy
+from .fast_td3 import Actor, Critic, DistributionalQNetwork
+from .fast_td3_utils import EmpiricalNormalization, SimpleReplayBuffer
+from .fast_td3_deploy import Policy, load_policy
 
 __all__ = [
     # Core model components

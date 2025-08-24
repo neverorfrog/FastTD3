@@ -32,7 +32,7 @@ from torch.amp import autocast, GradScaler
 
 from tensordict import TensorDict
 
-from fast_td3_utils import (
+from .fast_td3_utils import (
     EmpiricalNormalization,
     RewardNormalizer,
     PerTaskRewardNormalizer,
@@ -40,7 +40,7 @@ from fast_td3_utils import (
     save_params,
     mark_step,
 )
-from hyperparams import get_args
+from .hyperparams import get_args
 
 torch.set_float32_matmul_precision("high")
 
@@ -120,7 +120,7 @@ def main():
         eval_envs = envs
         render_env = envs
     else:
-        from environments.mujoco_playground_env import make_env
+        from fast_td3.environments.mujoco_playground_env import make_env
 
         # TODO: Check if re-using same envs for eval could reduce memory usage
         env_type = "mujoco_playground"
@@ -201,12 +201,12 @@ def main():
 
     if args.agent == "fasttd3":
         if env_type in ["mtbench"]:
-            from fast_td3 import MultiTaskActor, MultiTaskCritic
+            from .fast_td3 import MultiTaskActor, MultiTaskCritic
 
             actor_cls = MultiTaskActor
             critic_cls = MultiTaskCritic
         else:
-            from fast_td3 import Actor, Critic
+            from .fast_td3 import Actor, Critic
 
             actor_cls = Actor
             critic_cls = Critic
@@ -214,12 +214,12 @@ def main():
         print("Using FastTD3")
     elif args.agent == "fasttd3_simbav2":
         if env_type in ["mtbench"]:
-            from fast_td3_simbav2 import MultiTaskActor, MultiTaskCritic
+            from .fast_td3_simbav2 import MultiTaskActor, MultiTaskCritic
 
             actor_cls = MultiTaskActor
             critic_cls = MultiTaskCritic
         else:
-            from fast_td3_simbav2 import Actor, Critic
+            from .fast_td3_simbav2 import Actor, Critic
 
             actor_cls = Actor
             critic_cls = Critic

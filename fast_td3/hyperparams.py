@@ -287,8 +287,8 @@ class MuJoCoPlaygroundArgs(BaseArgs):
     v_min: float = -10.0
     v_max: float = 10.0
     buffer_size: int = 1024 * 10
-    num_envs: int = 512
-    num_eval_envs: int = 512
+    num_envs: int = 128
+    num_eval_envs: int = 128
     gamma: float = 0.97
 
 

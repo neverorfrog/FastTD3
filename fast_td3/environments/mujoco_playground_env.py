@@ -63,10 +63,16 @@ class PlaygroundEvalEnvWrapper:
         scene_option.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = False
         scene_option.flags[mujoco.mjtVisFlag.mjVIS_PERTFORCE] = False
         scene_option.flags[mujoco.mjtVisFlag.mjVIS_CONTACTFORCE] = False
+        
+        # EVAL
+        cam = mujoco.MjvCamera()
+        mujoco.mjv_defaultCamera(cam)
+        cam.distance = 10.0
+        cam.azimuth = 0
 
         frames = self.env.render(
             trajectory,
-            camera="track" if "Joystick" in self.env_name else None,
+            camera=cam,
             height=480,
             width=640,
             scene_option=scene_option,

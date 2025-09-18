@@ -155,6 +155,7 @@ def get_args():
         "h1hand-truck-v0": H1HandTruckArgs,
         # MuJoCo Playground
         # NOTE: These tasks are not full list of MuJoCo Playground tasks
+        "T1LowDimObstacleAvoidance": T1LowDimObstacleAvoidanceArgs,
         "G1JoystickFlatTerrain": G1JoystickFlatTerrainArgs,
         "G1JoystickRoughTerrain": G1JoystickRoughTerrainArgs,
         "T1JoystickFlatTerrain": T1JoystickFlatTerrainArgs,
@@ -287,9 +288,28 @@ class MuJoCoPlaygroundArgs(BaseArgs):
     v_min: float = -10.0
     v_max: float = 10.0
     buffer_size: int = 1024 * 10
-    num_envs: int = 128
-    num_eval_envs: int = 128
+    num_envs: int = 512
+    num_eval_envs: int = 512
     gamma: float = 0.97
+    
+@dataclass
+class T1LowDimObstacleAvoidanceArgs(MuJoCoPlaygroundArgs):
+    env_name: str = "T1LowDimObstacleAvoidance"
+    exp_name: str = "FastTD3_T1LowDimObstacleAvoidanceTest"
+    total_timesteps: int = 41000
+    agent: str = "fasttd3"
+    num_envs: int = 512
+    num_eval_envs: int = 512
+    render_interval: int = 5000
+    # batch_size: int = 8192
+    # critic_learning_rate: float = 3e-5
+    # actor_learning_rate: float = 3e-5
+    # weight_decay: float = 0.0
+    # critic_hidden_dim: int = 512
+    # critic_num_blocks: int = 2
+    # actor_hidden_dim: int = 256
+    # actor_num_blocks: int = 1
+    seed: int = 1
 
 
 @dataclass

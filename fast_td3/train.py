@@ -359,7 +359,8 @@ def main():
             )
         else:
             obs = render_env.reset()
-            render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
+            # render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
+            # render_env.state.info["goal"] = jnp.array([[2.25, 0.0]])
             renders = [render_env.state]
         for i in range(render_env.max_episode_steps):
             with torch.no_grad(), autocast(
@@ -368,8 +369,9 @@ def main():
                 obs = normalize_obs(obs, update=False)
                 actions = actor(obs)
             next_obs, _, done, _ = render_env.step(actions.float())
-            if env_type == "mujoco_playground":
-                render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
+            # if env_type == "mujoco_playground":
+                # render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
+                # render_env.state.info["goal"] = jnp.array([[2.25, 0.0]])
             if i % 2 == 0:
                 if env_type == "humanoid_bench":
                     renders.append(render_env.render())

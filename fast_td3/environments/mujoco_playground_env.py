@@ -73,8 +73,8 @@ class PlaygroundEvalEnvWrapper:
         frames = self.env.render(
             trajectory,
             camera=cam,
-            height=480,
-            width=640,
+            height=1080,
+            width=1920,
             scene_option=scene_option,
         )
         return frames

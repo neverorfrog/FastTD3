@@ -301,6 +301,7 @@ class T1LowDimObstacleAvoidanceArgs(MuJoCoPlaygroundArgs):
     num_envs: int = 512
     num_eval_envs: int = 512
     render_interval: int = 5000
+    seed: int = 2
     # batch_size: int = 8192
     # critic_learning_rate: float = 3e-5
     # actor_learning_rate: float = 3e-5
@@ -309,7 +310,6 @@ class T1LowDimObstacleAvoidanceArgs(MuJoCoPlaygroundArgs):
     # critic_num_blocks: int = 2
     # actor_hidden_dim: int = 256
     # actor_num_blocks: int = 1
-    seed: int = 1
 
 
 @dataclass

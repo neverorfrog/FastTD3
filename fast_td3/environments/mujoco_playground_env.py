@@ -1,8 +1,11 @@
+from collections import deque
 from mujoco_playground import registry
 from mujoco_playground import wrapper_torch
 
 import jax
 import mujoco
+import numpy as np
+import torch
 
 
 class PlaygroundEvalEnvWrapper:
@@ -25,6 +28,8 @@ class PlaygroundEvalEnvWrapper:
         self.num_envs = num_eval_envs
         self.jit_reset = jax.jit(jax.vmap(self.env.reset))
         self.jit_step = jax.jit(jax.vmap(self.env.step))
+        self.episode_success_queue = deque(maxlen=100)
+        self.episode_fall_queue = deque(maxlen=100)
 
         if isinstance(self.env.unwrapped.observation_size, dict):
             self.asymmetric_obs = True
@@ -56,7 +61,26 @@ class PlaygroundEvalEnvWrapper:
             next_obs = wrapper_torch._jax_to_torch(self.state.obs)
         rewards = wrapper_torch._jax_to_torch(self.state.reward)
         dones = wrapper_torch._jax_to_torch(self.state.done)
+        
+        if dones.any() and "goal_reached" in self.state.metrics:
+            goal_reached_vec = wrapper_torch._jax_to_torch(self.state.metrics["goal_reached"])
+            fallen_vec = wrapper_torch._jax_to_torch(self.state.metrics["fallen"])
+            for idx in torch.where(dones)[0]:
+                self.episode_success_queue.append(goal_reached_vec[idx].item())
+                self.episode_fall_queue.append(fallen_vec[idx].item())
+                
         return next_obs, rewards, dones, None
+    
+    def get_success_rate(self):
+        """Get rolling success rate for eval."""
+        if len(self.episode_success_queue) > 0:
+            return np.mean(self.episode_success_queue)
+        return 0.0
+    
+    def get_fall_rate(self):
+        if len(self.episode_fall_queue) > 0:
+            return np.mean(self.episode_fall_queue)
+        return 0.0
 
     def render_trajectory(self, trajectory):
         scene_option = mujoco.MjvOption()

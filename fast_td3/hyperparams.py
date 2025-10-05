@@ -26,6 +26,10 @@ class BaseArgs:
     """the project name"""
     use_wandb: bool = True
     """whether to use wandb"""
+    wandb_offline: bool = False
+    """whether to use wandb offline"""
+    upload_media: bool = False
+    """whether to upload gifs"""
     checkpoint_path: str = None
     """the path to the checkpoint file"""
     num_envs: int = 128
@@ -124,6 +128,8 @@ class BaseArgs:
     """the weight decay of the optimizer"""
     save_interval: int = 5000
     """the interval to save the model"""
+    success_window_size: int = 100
+    """the window size for success tracking"""
 
 
 def get_args():
@@ -296,20 +302,22 @@ class MuJoCoPlaygroundArgs(BaseArgs):
 class T1LowDimObstacleAvoidanceArgs(MuJoCoPlaygroundArgs):
     env_name: str = "T1LowDimObstacleAvoidance"
     exp_name: str = "FastTD3_T1LowDimObstacleAvoidanceTest"
-    total_timesteps: int = 41000
-    agent: str = "fasttd3"
+    total_timesteps: int = 151_000
+    agent: str = "fasttd3_simbav2"
     num_envs: int = 512
     num_eval_envs: int = 512
     render_interval: int = 5000
+    eval_interval: int = 200
     seed: int = 2
-    # batch_size: int = 8192
-    # critic_learning_rate: float = 3e-5
-    # actor_learning_rate: float = 3e-5
-    # weight_decay: float = 0.0
-    # critic_hidden_dim: int = 512
-    # critic_num_blocks: int = 2
-    # actor_hidden_dim: int = 256
-    # actor_num_blocks: int = 1
+    batch_size: int = 8192
+    critic_learning_rate: float = 3e-5
+    actor_learning_rate: float = 3e-5
+    weight_decay: float = 0.0
+    critic_hidden_dim: int = 512
+    critic_num_blocks: int = 2
+    actor_hidden_dim: int = 256
+    actor_num_blocks: int = 1
+    success_window_size: int = 100
 
 
 @dataclass

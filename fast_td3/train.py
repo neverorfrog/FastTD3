@@ -1,5 +1,13 @@
+from collections import deque, defaultdict
+import re
+from datetime import datetime
 import os
+import shutil
+import subprocess
 import sys
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 os.environ["TORCHDYNAMO_INLINE_INBUILT_NN_MODULES"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -17,6 +25,7 @@ import math
 import tqdm
 import wandb
 import numpy as np
+import jax.numpy as jp
 
 try:
     # Required for avoiding IsaacGym import error
@@ -53,7 +62,6 @@ except ImportError:
 def main():
     args = get_args()
     print(args)
-    run_name = f"{args.env_name}__{args.exp_name}__{args.seed}"
 
     amp_enabled = args.amp and args.cuda and torch.cuda.is_available()
     amp_device_type = (
@@ -64,14 +72,31 @@ def main():
     amp_dtype = torch.bfloat16 if args.amp_dtype == "bf16" else torch.float16
 
     scaler = GradScaler(enabled=amp_enabled and amp_dtype == torch.float16)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = f"{args.env_name}__{args.exp_name}__{timestamp}__{args.seed}"
 
     if args.use_wandb:
-        wandb.init(
+        wandb_mode = "offline" if args.wandb_offline else "online"
+        print(f"Initializing wandb in mode={wandb_mode}")
+        # sanitize run_name for filesystem-safe id
+        safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", run_name)
+        run = wandb.init(
             project=args.project,
             name=run_name,
             config=vars(args),
-            save_code=True,
+            mode=wandb_mode,
+            id=safe_id,
         )
+        base_dir = run.dir
+        
+        code_dest = os.path.join(run.dir, "code")
+        shutil.copytree("/home/neverorfrog/code/loco_rlmpc/mujoco_playground/mujoco_playground/_src/locomotion/t1_12dof/tasks/obstacle_avoidance", os.path.join(code_dest, "obstacle_avoidance"))
+        shutil.copyfile("/home/neverorfrog/code/loco_rlmpc/FastTD3/fast_td3/hyperparams.py", os.path.join(code_dest, "hyperparams.py"))
+        code_artifact = wandb.Artifact(name="code", type="code")
+        code_artifact.add_dir(code_dest)
+        code_artifact.save()
+        run.log_artifact(code_artifact)
+        
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -361,8 +386,6 @@ def main():
             )
         else:
             obs = render_env.reset()
-            # render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
-            # render_env.state.info["goal"] = jnp.array([[2.25, 0.0]])
             renders = [render_env.state]
         for i in range(render_env.max_episode_steps):
             with torch.no_grad(), autocast(
@@ -371,9 +394,6 @@ def main():
                 obs = normalize_obs(obs, update=False)
                 actions = actor(obs)
             next_obs, _, done, _ = render_env.step(actions.float())
-            # if env_type == "mujoco_playground":
-                # render_env.state.info["command"] = jnp.array([[1.0, 0.0, 0.0]])
-                # render_env.state.info["goal"] = jnp.array([[2.25, 0.0]])
             if i % 2 == 0:
                 if env_type == "humanoid_bench":
                     renders.append(render_env.render())
@@ -558,6 +578,10 @@ def main():
     pbar = tqdm.tqdm(total=args.total_timesteps, initial=global_step)
     start_time = None
     desc = ""
+    # in-memory history for plotting
+    metrics_history = defaultdict(list)
+    plots_dir = os.path.join(base_dir, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
 
     while global_step < args.total_timesteps:
         mark_step()
@@ -661,7 +685,6 @@ def main():
 
             if global_step % 100 == 0 and start_time is not None:
                 speed = (global_step - measure_burnin) / (time.time() - start_time)
-                pbar.set_description(f"{speed: 4.4f} sps, " + desc)
                 with torch.no_grad():
                     logs = {
                         "actor_loss": logs_dict["actor_loss"].mean(),
@@ -673,29 +696,67 @@ def main():
                         "env_rewards": rewards.mean(),
                         "buffer_rewards": raw_rewards.mean(),
                     }
+                    
+                    if "rolling_success_rate" in infos["log"]:
+                        logs["train_success_rate"] = infos["log"]["rolling_success_rate"]
+                        logs["train_fall_rate"] = infos["log"]["rolling_fall_rate"]
+                        logs["train_timeout_rate"] = infos["log"]["rolling_timeout_rate"]
 
                     if args.eval_interval > 0 and global_step % args.eval_interval == 0:
                         print(f"Evaluating at global step {global_step}")
                         eval_avg_return, eval_avg_length = evaluate()
+                        eval_success_rate = eval_envs.get_success_rate()
+                        eval_fall_rate = eval_envs.get_fall_rate()
                         if env_type in ["humanoid_bench", "isaaclab", "mtbench"]:
                             # NOTE: Hacky way of evaluating performance, but just works
                             obs = envs.reset()
                         logs["eval_avg_return"] = eval_avg_return
                         logs["eval_avg_length"] = eval_avg_length
+                        logs["eval_success_rate"] = eval_success_rate
+                        logs["eval_fall_rate"] = eval_fall_rate
 
                     if (
                         args.render_interval > 0
                         and global_step % args.render_interval == 0
                     ):
                         renders = render_with_rollout()
-                        render_video = wandb.Video(
-                            np.array(renders).transpose(
-                                0, 3, 1, 2
-                            ),  # Convert to (T, C, H, W) format
-                            fps=30,
-                            format="gif",
-                        )
-                        logs["render_video"] = render_video
+                        if args.upload_media:
+                            render_video = wandb.Video(
+                                np.array(renders).transpose(
+                                    0, 3, 1, 2
+                                ),  # Convert to (T, C, H, W) format
+                                fps=30,
+                                format="gif",
+                            )
+                            logs["render_video"] = render_video
+                        else:
+                            # Save a local gif into the run folder but do not upload it as a wandb media artifact
+                            try:
+                                import imageio
+
+                                videos_dir = os.path.join(base_dir, "videos")
+                                os.makedirs(videos_dir, exist_ok=True)
+                                gif_path = os.path.join(videos_dir, f"render_{global_step}.gif")
+                                # frames may be numpy arrays in different dtypes; ensure uint8
+                                frames = []
+                                for fr in renders:
+                                    f = np.array(fr)
+                                    if f.dtype.kind == "f":
+                                        f = (np.clip(f, 0, 1) * 255).astype("uint8")
+                                    elif f.dtype.kind != "u":
+                                        f = f.astype("uint8")
+                                    frames.append(f)
+                                imageio.mimsave(gif_path, frames, fps=30)
+                                logs["render_video_path"] = gif_path
+                            except Exception as e:
+                                print("Warning: failed to save local render gif:", e)
+                env_r = logs.get("env_rewards")
+                buf_r = logs.get("buffer_rewards")
+                if isinstance(env_r, torch.Tensor):
+                    env_r = env_r.item()
+                if isinstance(buf_r, torch.Tensor):
+                    buf_r = buf_r.item()
+                pbar.set_description(f"{speed:4.4f} sps, env_r:{env_r:0.3f}, buf_r:{buf_r:0.3f}, " + desc)
                 if args.use_wandb:
                     wandb.log(
                         {
@@ -708,12 +769,71 @@ def main():
                         step=global_step,
                     )
 
+                # Save PNG plots of selected metrics (offline-friendly)
+                try:
+                    # combine the same dict we sent to wandb
+                    all_logged = {
+                        "speed": float(speed),
+                        "frame": int(global_step * args.num_envs),
+                        "critic_lr": float(q_scheduler.get_last_lr()[0]),
+                        "actor_lr": float(actor_scheduler.get_last_lr()[0]),
+                    }
+                    for k, v in logs.items():
+                        try:
+                            all_logged[k] = float(v)
+                        except Exception:
+                            # skip non-numeric entries like wandb.Video
+                            pass
+
+                    # append to history
+                    for k, v in all_logged.items():
+                        if isinstance(v, (int, float)) and (not (v != v)):
+                            metrics_history[k].append((global_step, v))
+
+                    # metrics to always plot if present
+                    plot_keys = [
+                        "env_rewards",
+                        "buffer_rewards",
+                        "actor_loss",
+                        "qf_loss",
+                        "qf_max",
+                        "qf_min",
+                        "actor_grad_norm",
+                        "critic_grad_norm",
+                        "eval_avg_return",
+                        "speed",
+                        "train_success_rate",
+                        "train_fall_rate",
+                        "eval_success_rate",
+                        "eval_fall_rate"
+                    ]
+
+                    for key in plot_keys:
+                        data = metrics_history.get(key)
+                        if not data:
+                            continue
+                        xs, ys = zip(*data)
+                        plt.figure(figsize=(6, 3))
+                        plt.plot(xs, ys)
+                        plt.xlabel("global_step")
+                        plt.ylabel(key)
+                        plt.title(key)
+                        plt.grid(True)
+                        out_path = os.path.join(plots_dir, f"{key}.png")
+                        plt.tight_layout()
+                        plt.savefig(out_path)
+                        plt.close()
+                except Exception as e:
+                    # plotting should not crash training
+                    print("Warning: failed to save plots:", e)
+
             if (
                 args.save_interval > 0
                 and global_step > 0
                 and global_step % args.save_interval == 0
             ):
                 print(f"Saving model at global step {global_step}")
+                path = os.path.join(f"{run.dir}/models" if args.use_wandb else "models", f"{run_name}_{global_step}.pt")
                 save_params(
                     global_step,
                     actor,
@@ -722,7 +842,7 @@ def main():
                     obs_normalizer,
                     critic_obs_normalizer,
                     args,
-                    f"models/{run_name}_{global_step}.pt",
+                    path,
                 )
 
         global_step += 1
@@ -730,6 +850,7 @@ def main():
         q_scheduler.step()
         pbar.update(1)
 
+    path = os.path.join(f"{run.dir}/models" if args.use_wandb else "models", f"{run_name}_{global_step}.pt")
     save_params(
         global_step,
         actor,
@@ -738,7 +859,7 @@ def main():
         obs_normalizer,
         critic_obs_normalizer,
         args,
-        f"models/{run_name}_final.pt",
+        path,
     )
 
 

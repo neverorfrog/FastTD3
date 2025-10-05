@@ -42,7 +42,8 @@ tensordict = "==0.7.2"
 tyro = ">=0.9.28, <0.10"
 loguru = ">=0.7.3, <0.8"
 playground = {path = "/home/neverorfrog/code/loco_rlmpc/mujoco_playground", editable = true}
-jax = { version = "==0.4.35", extras = ["cuda12"] }
+jax = { version = "==0.5.2", extras = ["cuda12"] }
+brax = ">=0.12.1,<0.13"
 nvidia-cublas-cu12 = "==12.4.5.8"
 nvidia-cuda-cupti-cu12 = "==12.4.127"
 nvidia-cuda-nvcc-cu12 = "==12.8.93"
